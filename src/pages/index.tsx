@@ -174,10 +174,13 @@ export const getStaticProps = async () => {
       revalidate: 300,
     };
   } catch (error) {
+    console.error('Failed to fetch data for homepage:', error);
     return {
-      props: {},
+      props: {
+        topSearches: [],
+        trpcState: null,
+      },
       revalidate: 60,
-      notFound: true,
     };
   }
 };
