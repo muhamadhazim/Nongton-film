@@ -1,10 +1,9 @@
-import { createSSGHelpers } from "@trpc/react/ssg";
-import type { InferGetStaticPropsType, NextPage } from "next";
+import type { NextPage } from "next";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FaBars } from "react-icons/fa";
 import { InView } from "react-intersection-observer";
-import superjson from "superjson";
+import axios from "axios";
 
 import BannerSlider from "@/components/Home/BannerSlider";
 import InfiniteLoader from "@/components/Home/InfiniteLoader";
@@ -13,12 +12,34 @@ import Sidebar from "@/components/Layout/Sidebar";
 import SearchBox from "@/components/Search/SearchBox";
 import TopSearches from "@/components/Search/TopSearches";
 import Meta from "@/components/Shared/Meta";
-import { appRouter } from "@/server/createRouter";
-import { getTopSearches } from "@/services/search";
 import { trpc } from "@/utils/trpc";
 
-const Home: NextPage<HomeProps> = ({ topSearches }) => {
+const Home: NextPage = () => {
+  const [topSearches, setTopSearches] = useState<any[]>([]);
   const [sidebarActive, setSidebarActive] = useState(false);
+
+  // Fetch top searches client-side
+  useEffect(() => {
+    const fetchTopSearches = async () => {
+      try {
+        const response = await axios.get(
+          "https://ga-mobile-api.loklok.tv/cms/app/search/v1/searchLeaderboard",
+          {
+            headers: {
+              lang: "en",
+              versioncode: "12",
+              clienttype: "ios_default",
+            },
+          }
+        );
+        setTopSearches(response.data?.data?.list || []);
+      } catch (error) {
+        console.error("Failed to fetch top searches:", error);
+        setTopSearches([]);
+      }
+    };
+    fetchTopSearches();
+  }, []);
 
   const { data, fetchNextPage, isFetchingNextPage } = trpc.useInfiniteQuery(
     ["home.infinite", {}],
@@ -147,40 +168,3 @@ const Home: NextPage<HomeProps> = ({ topSearches }) => {
 };
 
 export default Home;
-
-type HomeProps = InferGetStaticPropsType<typeof getStaticProps>;
-
-export const getStaticProps = async () => {
-  try {
-    const ssg = createSSGHelpers({
-      router: appRouter,
-      ctx: {
-        req: undefined,
-        res: undefined,
-      },
-      transformer: superjson,
-    });
-
-    const [topSearches] = await Promise.all([
-      getTopSearches(),
-      ssg.fetchInfiniteQuery("home.infinite", {}),
-    ]);
-
-    return {
-      props: {
-        topSearches,
-        trpcState: ssg.dehydrate(),
-      },
-      revalidate: 300,
-    };
-  } catch (error) {
-    console.error('Failed to fetch data for homepage:', error);
-    return {
-      props: {
-        topSearches: [],
-        trpcState: null,
-      },
-      revalidate: 60,
-    };
-  }
-};
